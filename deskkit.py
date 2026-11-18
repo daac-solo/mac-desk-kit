@@ -281,6 +281,67 @@ def screen_with_mouse():
     return AppKit.NSScreen.mainScreen()
 
 
+class FocusField(AppKit.NSTextField):
+    """A text field in a widget you can actually click into.
+
+    A non-activating panel is right for a widget — clicking a checkbox on
+    it should not pull you out of what you were doing. But it also means
+    clicking the text field does not make the app active, so the caret
+    appears and your keystrokes still go somewhere else. Typing looks
+    broken and ⌘V does nothing, with no error anywhere.
+
+    So the field, and only the field, asks for focus when clicked.
+    """
+
+    def acceptsFirstMouse_(self, _event):
+        return True
+
+    def mouseDown_(self, event):
+        win = self.window()
+        if win is not None:
+            take_focus(win, self)
+        objc.super(FocusField, self).mouseDown_(event)
+
+
+def install_menu(quit_title="退出"):
+    """Give the app a main menu, so its text fields have a clipboard.
+
+    Cocoa routes ⌘X ⌘C ⌘V ⌘A ⌘Z through the main menu bar. An agent app
+    that never built one has no clipboard inside its own text fields at
+    all, and nothing reports it: the keystroke simply does nothing.
+
+    The first menu in the bar is the application menu, whatever it is
+    called — so the Edit menu has to be the second one, or its shortcuts
+    do not register. Building Edit alone looks right and does not work.
+    """
+    app = AppKit.NSApplication.sharedApplication()
+    if app.mainMenu() is not None:
+        return
+    main = AppKit.NSMenu.alloc().init()
+
+    app_item = AppKit.NSMenuItem.alloc().init()
+    main.addItem_(app_item)
+    app_menu = AppKit.NSMenu.alloc().init()
+    app_menu.addItemWithTitle_action_keyEquivalent_(quit_title, "terminate:", "q")
+    app_item.setSubmenu_(app_menu)
+
+    edit_item = AppKit.NSMenuItem.alloc().init()
+    main.addItem_(edit_item)
+    edit = AppKit.NSMenu.alloc().initWithTitle_("Edit")
+    for title, sel, key in (
+        ("撤销", "undo:", "z"), ("重做", "redo:", "Z"), (None, None, None),
+        ("剪切", "cut:", "x"), ("拷贝", "copy:", "c"),
+        ("粘贴", "paste:", "v"), ("全选", "selectAll:", "a"),
+    ):
+        if title is None:
+            edit.addItem_(AppKit.NSMenuItem.separatorItem())
+            continue
+        edit.addItemWithTitle_action_keyEquivalent_(title, sel, key)
+    edit_item.setSubmenu_(edit)
+
+    app.setMainMenu_(main)
+
+
 def take_focus(panel, view):
     """Become key only when actually asked to type. A desktop widget that
     grabs focus on sight is a widget you turn off."""
