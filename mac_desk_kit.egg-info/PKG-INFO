@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: mac-desk-kit
+Version: 1.0.0
+Summary: The window chrome a macOS desktop widget needs: a draggable glass panel that remembers where you put it.
+License-Expression: MIT
+Requires-Python: >=3.9
+License-File: LICENSE
+Requires-Dist: pyobjc-core
+Requires-Dist: pyobjc-framework-Cocoa
+Dynamic: license-file

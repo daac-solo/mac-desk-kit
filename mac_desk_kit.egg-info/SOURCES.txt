@@ -1,0 +1,9 @@
+LICENSE
+README.md
+deskkit.py
+pyproject.toml
+mac_desk_kit.egg-info/PKG-INFO
+mac_desk_kit.egg-info/SOURCES.txt
+mac_desk_kit.egg-info/dependency_links.txt
+mac_desk_kit.egg-info/requires.txt
+mac_desk_kit.egg-info/top_level.txt

@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mac-desk-kit"
+version = "1.0.0"
+description = "The window chrome a macOS desktop widget needs: a draggable glass panel that remembers where you put it."
+requires-python = ">=3.9"
+license = "MIT"
+dependencies = [
+  "pyobjc-core",
+  "pyobjc-framework-Cocoa",
+]
+
+[tool.setuptools]
+py-modules = ["deskkit"]
