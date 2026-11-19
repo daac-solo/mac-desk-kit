@@ -203,8 +203,14 @@ class DragView(AppKit.NSView):
         # performWindowDragWithEvent_ walks the window over to the pointer
         # and then reports it as "where you put it" — the widget ignored
         # its saved position and overwrote the file with the new one, 104
-        # times in one launch. Measured, not guessed: the trace is in the
-        # commit.
+        # times in one launch. Measured, not guessed: DESKKIT_TRACE=1.
+        #
+        # It takes a widget that activates itself at launch to trigger it:
+        # 瞭望鸡 has the same DragView and does not, because it only takes
+        # focus when you press its hotkey. Tested three launches there, all
+        # clean. The guard is right either way — a drag with no button is
+        # not a drag — but the bug needs activation plus a pointer that
+        # happens to be over the window.
         if not (AppKit.NSEvent.pressedMouseButtons() & 1):
             return
         self.dragging = True
