@@ -18,6 +18,19 @@ import io
 import json
 import os
 
+# Set DESKKIT_TRACE=1 to find out why a widget came up in the wrong place.
+_TRACE = os.environ.get("DESKKIT_TRACE") == "1"
+
+
+def _trace(msg):
+    if not _TRACE:
+        return
+    try:
+        with io.open("/tmp/deskkit-trace.log", "a", encoding="utf-8") as fh:
+            fh.write(msg + "\n")
+    except Exception:
+        pass
+
 import AppKit
 import objc
 from Foundation import NSMakeRect
@@ -122,6 +135,8 @@ def save_pos(app, x, y):
     """Atomic. A position half-written is a position that reads back as
     corrupt next launch, and the widget silently goes home to the corner
     the author picked."""
+    import traceback
+    _trace("save_pos(%s, %s) from:\n%s" % (x, y, "".join(traceback.format_stack())))
     try:
         path = _pos_file(app)
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -182,6 +197,15 @@ class DragView(AppKit.NSView):
         if win is None or self.dragging:
             return
         if not hasattr(win, "performWindowDragWithEvent_"):
+            return
+        # A drag needs a button actually held down. AppKit delivers
+        # mouseDragged at launch with nothing pressed, and handing that to
+        # performWindowDragWithEvent_ walks the window over to the pointer
+        # and then reports it as "where you put it" — the widget ignored
+        # its saved position and overwrote the file with the new one, 104
+        # times in one launch. Measured, not guessed: the trace is in the
+        # commit.
+        if not (AppKit.NSEvent.pressedMouseButtons() & 1):
             return
         self.dragging = True
         if self.on_move_start:
@@ -356,8 +380,12 @@ def place(panel, app, fallback_inset=(24, 24)):
     the pointer is on if that place is gone."""
     f = panel.frame()
     saved = load_pos(app)
-    if saved and on_screen(saved[0], saved[1], f.size.width, f.size.height):
+    ok = bool(saved) and on_screen(saved[0], saved[1], f.size.width, f.size.height)
+    _trace("place(): saved=%s size=%sx%s on_screen=%s"
+           % (saved, f.size.width, f.size.height, ok))
+    if ok:
         panel.setFrameOrigin_(AppKit.NSMakePoint(saved[0], saved[1]))
+        _trace("place(): set to %s" % (panel.frame().origin,))
         return
     vf = screen_with_mouse().visibleFrame()
     panel.setFrameOrigin_(AppKit.NSMakePoint(
