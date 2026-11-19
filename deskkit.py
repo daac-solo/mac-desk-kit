@@ -182,6 +182,8 @@ class DragView(AppKit.NSView):
             self.on_moved = None
             self.on_move_start = None
             self.dragging = False
+            self.armed = False
+            self.origin = None
         return self
 
     # Draggable without first clicking to activate the app it belongs to.
@@ -190,7 +192,15 @@ class DragView(AppKit.NSView):
 
     def mouseDown_(self, event):
         self.dragging = False
+        self.origin = event.locationInWindow()
+        # Armed only by a real press on this view. Everything else is a
+        # drag that never started.
+        self.armed = True
         objc.super(DragView, self).mouseDown_(event)
+
+    def mouseUp_(self, event):
+        self.armed = False
+        objc.super(DragView, self).mouseUp_(event)
 
     def mouseDragged_(self, event):
         win = self.window()
@@ -198,27 +208,41 @@ class DragView(AppKit.NSView):
             return
         if not hasattr(win, "performWindowDragWithEvent_"):
             return
-        # A drag needs a button actually held down. AppKit delivers
-        # mouseDragged at launch with nothing pressed, and handing that to
+        # A drag has to start from a press on this view.
+        #
+        # AppKit delivers mouseDragged at launch, and handing that to
         # performWindowDragWithEvent_ walks the window over to the pointer
         # and then reports it as "where you put it" — the widget ignored
         # its saved position and overwrote the file with the new one, 104
         # times in one launch. Measured, not guessed: DESKKIT_TRACE=1.
         #
-        # It takes a widget that activates itself at launch to trigger it:
-        # 瞭望鸡 has the same DragView and does not, because it only takes
-        # focus when you press its hotkey. Tested three launches there, all
-        # clean. The guard is right either way — a drag with no button is
-        # not a drag — but the bug needs activation plus a pointer that
-        # happens to be over the window.
+        # Asking pressedMouseButtons() was the first fix and it is not
+        # enough: it answers "is a button down now", which can read stale
+        # or true for a press that belonged to something else, and the bug
+        # came back. `armed` answers the question that actually matters —
+        # did the press land here — and nothing but a real mouseDown on
+        # this view can set it.
+        if not self.armed or self.origin is None:
+            return
         if not (AppKit.NSEvent.pressedMouseButtons() & 1):
+            self.armed = False
+            return
+        # And it has to travel. A press that has not moved is a click, not
+        # a drag — AppKit delivers a mouseDown and a mouseDragged at launch
+        # when the pointer is over the window, and without a threshold the
+        # widget hands itself to performWindowDragWithEvent_ and walks to
+        # wherever the pointer is. Three points is the usual slop.
+        p = event.locationInWindow()
+        if abs(p.x - self.origin.x) < 3 and abs(p.y - self.origin.y) < 3:
             return
         self.dragging = True
         if self.on_move_start:
             self.on_move_start()
         win.performWindowDragWithEvent_(event)
         # It returns when the drag ends, so the window is already dropped.
+        # It also swallows the mouseUp, so disarm here.
         self.dragging = False
+        self.armed = False
         if self.on_moved:
             self.on_moved()
 
